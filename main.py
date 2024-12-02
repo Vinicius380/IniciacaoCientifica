@@ -6,81 +6,81 @@ import paho.mqtt.client as mqtt
 
 # ********************** CONEXÃO COM O BANCO DE DADOS **********************
 
-app = Flask("registro")     # Nome do aplicativo.
+app = Flask("registros")     # Nome do aplicativo.
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False    # Configura o SQLAlchemy para rastrear modificações. 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:525748@127.0.0.1/bd_medidor'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:525748@127.0.0.1/bd_medicao'
 
 mybd = SQLAlchemy(app)      # Cria uma instância do SQLAlchemy, passando a aplicação Flask como parâmetro. 
 
 # *************************** CONEXÃO DOS SENSORES ***************************
-mqtt_dados = {}
+# mqtt_dados = {}
 
-def conexao_sensor(client, userdata, flags, rc):
-    client.subscribe("projeto_integrado/SENAI134/Cienciadedados/Grupo1")
+# def conexao_sensor(client, userdata, flags, rc):
+#     client.subscribe("projeto_integrado/SENAI134/Cienciadedados/Grupo1")
 
-def msg_sensor(client, userdata, msg):
-    global mqtt_dados
+# def msg_sensor(client, userdata, msg):
+#     global mqtt_dados
     
-    valor = msg.payload.decode('utf-8')     # Decodificar a mensagem recebida de bytes para string
-    mqtt_dados = json.loads(valor)          # Decodificar de string para JSON
-    print(f'Mensagem recebida: {mqtt_dados}')
+#     valor = msg.payload.decode('utf-8')     # Decodificar a mensagem recebida de bytes para string
+#     mqtt_dados = json.loads(valor)          # Decodificar de string para JSON
+#     print(f'Mensagem recebida: {mqtt_dados}')
     
-    with app.app_context():         # Correlação Banco de Dados com Sensor. 
-        try:
-            temperatura = mqtt_dados.get('temperature')
-            pressao = mqtt_dados.get('pressure')
-            altitude = mqtt_dados.get('altitude')
-            umidade = mqtt_dados.get('humidity')
-<<<<<<< HEAD
-            co2 = mqtt_dados.get('CO2')
-            poeira = mqtt_dados.get("particula1")
-=======
-            co2 = mqtt_dados.get('co2') #co2
-            poeira = 0 # mqtt_dados.get('poeira1')
->>>>>>> 82f5336b5a4ceda8f8a6e5f21d61593e1449f236
-            tempo_registro = mqtt_dados.get('timestamp')
-            regiao = 'Grande ABC'
+#     with app.app_context():         # Correlação Banco de Dados com Sensor. 
+#         try:
+#             temperatura = mqtt_dados.get('temperature')
+#             pressao = mqtt_dados.get('pressure')
+#             altitude = mqtt_dados.get('altitude')
+#             umidade = mqtt_dados.get('humidity')
+# <<<<<<< HEAD
+#             co2 = mqtt_dados.get('CO2')
+#             poeira = mqtt_dados.get("particula1")
+# =======
+#             co2 = mqtt_dados.get('co2') #co2
+#             poeira = 0 # mqtt_dados.get('poeira1')
+# >>>>>>> 82f5336b5a4ceda8f8a6e5f21d61593e1449f236
+#             tempo_registro = mqtt_dados.get('timestamp')
+#             regiao = 'Grande ABC'
             
-            if tempo_registro is None:
-                print("Timestamp não encontrado")
-                return
+#             if tempo_registro is None:
+#                 print("Timestamp não encontrado")
+#                 return
             
-            try:
-                tempo_oficial = datetime.fromtimestamp(int(tempo_registro), tz=timezone.utc)
+#             try:
+#                 tempo_oficial = datetime.fromtimestamp(int(tempo_registro), tz=timezone.utc)
             
-            except (ValueError, TypeError) as e:
-                print(f"Erro ao converter timestamp: {str(e)}")
-                return
-            # Criar para objeto que vai simular a tabela do banco. 
-            novos_dados = Registro(
-                temperatura = temperatura,
-                pressao = pressao,
-                altitude = altitude,
-                umidade = umidade,
-                co2 = co2,
-                poeira = poeira,
-                tempo_registro = tempo_oficial,
-                regiao = regiao
-            )
+#             except (ValueError, TypeError) as e:
+#                 print(f"Erro ao converter timestamp: {str(e)}")
+#                 return
+#             # Criar para objeto que vai simular a tabela do banco. 
+#             novos_dados = Registro(
+#                 temperatura = temperatura,
+#                 pressao = pressao,
+#                 altitude = altitude,
+#                 umidade = umidade,
+#                 co2 = co2,
+#                 poeira = poeira,
+#                 tempo_registro = tempo_oficial,
+#                 regiao = regiao
+#             )
             
-            # Adicionar novo registro ao banco.
-            mybd.session.add(novos_dados)
-            mybd.session.commit()
-            print("Os dados foram inseridos com sucesso no banco de dados!")
+#             # Adicionar novo registro ao banco.
+#             mybd.session.add(novos_dados)
+#             mybd.session.commit()
+#             print("Os dados foram inseridos com sucesso no banco de dados!")
         
-        except Exception as e:
-            print(f"Erro ao processar os dados do MQTT: {str(e)}")
-            mybd.session.rollback()
+#         except Exception as e:
+#             print(f"Erro ao processar os dados do MQTT: {str(e)}")
+#             mybd.session.rollback()
 
-mqtt_client = mqtt.Client()
-mqtt_client.on_connect = conexao_sensor
-mqtt_client.on_message = msg_sensor
-mqtt_client.connect("test.mosquitto.org", 1883, 60)
+# mqtt_client = mqtt.Client()
+# mqtt_client.on_connect = conexao_sensor
+# mqtt_client.on_message = msg_sensor
+# mqtt_client.connect("test.mosquitto.org", 1883, 60)
 
-def start_mqtt():
-    mqtt_client.loop_start()
+# def start_mqtt():
+#     mqtt_client.loop_start()
     
 class Registro(mybd.Model):
     __tablename__ = 'tb_registro'
@@ -132,26 +132,6 @@ def deletar_registro_por_id(id):
     else:
         return gera_response(400, 'registro', {}, 'Registro não encontrado.')
         
-
-@app.route('/dados', methods=['GET'])
-def busca_dados():
-    return jsonify(mqtt_dados)        
-
-
-def to_json(self):
-    return {
-        'id': self.id,
-        'temperatura': float(self.temperatura),
-        'pressao': float(self.pressao),
-        'altitude': float(self.altitude),
-        'umidade': float(self.umidade),
-        'co2': float(self.co2),
-        'poeira': float(self.poeira),
-        'tempo_registro': self.tempo_registro.strftime('%Y-%m-%d %H:%M:%S') 
-        if self.tempo_registro else None,
-        'regiao': self.regiao
-        
-    }
     
 @app.route('/dados', methods=['POST'])
 def criar_dados():
@@ -218,5 +198,4 @@ if __name__ == '__main__':
     with app.app_context():
         mybd.create_all()
         
-        start_mqtt()
         app.run(port=5000, host="localhost", debug=True)
