@@ -127,13 +127,6 @@ def estatisticas_basicas(df, coluna):
 
 def correlacionar_temperatura_sintomas(temperatura_df, sintomas_df):
     try:
-        # Exibe as primeiras linhas para depuração
-        st.write("Prévia dos dados de temperatura:")
-        st.dataframe(temperatura_df.head())
-        
-        st.write("Prévia dos dados de sintomas:")
-        st.dataframe(sintomas_df.head())
-
         # Verificar colunas de temperatura
         required_temp_columns = {'tempo_registro', 'temperatura_minima', 'temperatura_maxima', 'temperatura_media'}
         if not required_temp_columns.issubset(temperatura_df.columns):
@@ -181,26 +174,66 @@ def correlacionar_temperatura_sintomas(temperatura_df, sintomas_df):
         ax.set_title("Relação entre Temperatura e Sintomas")
         st.pyplot(fig)
 
-        # Exibindo correlograma (heatmap)
-        st.subheader("Correlograma: Matriz de Correlação")
-        st.write("A matriz de correlação visualiza a relação entre as variáveis numéricas.")
+    except Exception as e:
+        st.error(f"Erro ao gerar correlações: {e}")
 
-        corr_matrix = correlacao_df[['temperatura_minima', 'temperatura_maxima', 'temperatura_media', 'frequencia_sintomas']].corr()
-        fig, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', ax=ax, fmt=".2f")
-        st.pyplot(fig)
+def grafico_barras_empilhadas(co_df, sintomas_df):
+    try:
+        # Verificar colunas de CO
+        if 'tempo_registro' not in co_df.columns or 'concentracao_co' not in co_df.columns:
+            st.error("As colunas 'tempo_registro' e 'concentracao_co' não estão presentes no DataFrame de CO.")
+            return
+        
+        # Verificar colunas de sintomas
+        if 'tempo_registro' not in sintomas_df.columns or 'sintomas' not in sintomas_df.columns:
+            st.error("As colunas 'tempo_registro' e 'sintomas' não estão presentes no DataFrame de sintomas.")
+            return
 
-        # Série temporal: Temperatura e Sintomas ao longo do tempo
-        st.subheader("Série Temporal: Sintomas e Temperatura")
-        st.write("Acompanhe as variações de temperatura e frequência de sintomas ao longo do tempo.")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(correlacao_df['tempo_registro'], correlacao_df['frequencia_sintomas'], label="Frequência de Sintomas", color="darkred")
-        ax.plot(correlacao_df['tempo_registro'], correlacao_df['temperatura_media'], label="Temperatura Média (°C)", color="blue")
-        ax.fill_between(correlacao_df['tempo_registro'], correlacao_df['temperatura_media'], color="blue", alpha=0.2)
-        ax.set_xlabel("Data")
-        ax.set_ylabel("Valores")
+        # Processando dados de CO
+        co_df['tempo_registro'] = pd.to_datetime(co_df['tempo_registro'])
+        co_aggregated = co_df.groupby('tempo_registro')['concentracao_co'].mean().reset_index()
+
+        # Processando dados de sintomas
+        sintomas_df['tempo_registro'] = pd.to_datetime(sintomas_df['tempo_registro'])
+        sintomas_frequencia = (
+            sintomas_df.groupby('tempo_registro')
+            .size()
+            .reset_index(name='frequencia_sintomas')
+        )
+
+        # Mesclando datasets
+        merged_df = pd.merge(
+            co_aggregated,
+            sintomas_frequencia,
+            on='tempo_registro',
+            how='inner'
+        )
+
+        # Normalizando os valores para uma escala de 0 a 1
+        merged_df['concentracao_co_norm'] = merged_df['concentracao_co'] / merged_df['concentracao_co'].max()
+        merged_df['frequencia_sintomas_norm'] = merged_df['frequencia_sintomas'] / merged_df['frequencia_sintomas'].max()
+
+        # Gráfico de barras empilhadas
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # Preparar dados para o gráfico
+        x = merged_df['tempo_registro']
+        y1 = merged_df['concentracao_co_norm']
+        y2 = merged_df['frequencia_sintomas_norm']
+
+        # Gerar barras empilhadas
+        ax.bar(x, y1, label='Concentração de CO', color='skyblue')
+        ax.bar(x, y2, label='Frequência de Sintomas', bottom=y1, color='salmon')
+
+        # Personalizações
+        ax.set_xlabel("Tempo de Registro")
+        ax.set_ylabel("Valores Normalizados")
+        ax.set_title("Medição de CO e Frequência de Sintomas ao Longo do Tempo")
         ax.legend()
+
+        # Formatação do eixo x
+        plt.xticks(rotation=45)
         st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"Erro ao gerar correlações: {e}")
+        st.error(f"Erro ao gerar o gráfico de barras empilhadas: {e}")

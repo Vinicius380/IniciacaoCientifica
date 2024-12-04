@@ -59,7 +59,7 @@ def dashboard():
         intervalo_co = st.selectbox("Intervalo de Agrupamento para CO", options=["15Min", "30Min", "1H", "6H", "1D"], index=2, key="CO")
         
         grafico_barras(df_co, "tempo_registro", "concentracao_co", intervalo_co, "Concentração de CO ao Longo do Tempo")
-        grafico_linhas(df_co, "tempo_registro", "concentracao_co", intervalo_co, "Concentração de CO")
+        grafico_barras_empilhadas(df_co, df_sintomas)
 
     with aba_temperatura:
         st.subheader("Temperatura")
