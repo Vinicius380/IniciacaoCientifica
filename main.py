@@ -10,7 +10,7 @@ app = Flask("registros")     # Nome do aplicativo.
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False    # Configura o SQLAlchemy para rastrear modificações. 
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://senai%40134@127.0.0.1/bd_medicao'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://525748@127.0.0.1/bd_medicao' #525748 #senai%40134
 
 mybd = SQLAlchemy(app)      # Cria uma instância do SQLAlchemy, passando a aplicação Flask como parâmetro. 
 

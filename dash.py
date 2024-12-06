@@ -26,17 +26,24 @@ query_temperatura = """
   """  
 df_temperatura = conexao(query_temperatura)
   
-query_co = """
-	SELECT data_da_coleta AS tempo_registro, media_do_horario AS concentracao_co 
-    FROM dados_CO
-	WHERE data_da_coleta BETWEEN '2024-11-01' AND '2024-11-30'
+query_poluentes = """
+	SELECT tempo_registro, pm25, pm10, o3, no2, so2, co
+    FROM dados_poluentes
+	WHERE tempo_registro BETWEEN '2024-11-01' AND '2024-12-06'
+     """
+df_poluentes = conexao(query_poluentes)       
+
+query_co2 = """
+  SELECT tempo_registro, co2 
+  FROM tb_registro 
+  WHERE tempo_registro BETWEEN '2024-11-01' AND '2024-12-06'
     """
-df_co = conexao(query_co)       
+df_co2 = conexao(query_co2)  
 
 query_sintomas = """
     SELECT data_notificacao AS tempo_registro, sintomas 
     FROM principais_sintomas
-    WHERE data_notificacao BETWEEN '2024-11-01' AND '2024-11-30'
+    WHERE data_notificacao BETWEEN '2024-11-01' AND '2024-12-06'
     """
 df_sintomas = conexao(query_sintomas)
 
@@ -46,20 +53,44 @@ def dashboard():
     st.title("Clima e Saúde: Monitoramento do Ar")
 
     # Criação das abas para cada gráfico
-    aba_CO, aba_temperatura, aba_sintomas = st.tabs(
-        ["Emissões de CO", "Temperatura", "Distribuição de Sintomas"]
+    aba_Poluentes, aba_temperatura, aba_sintomas = st.tabs(
+        ["Poluentes", "Temperatura", "Distribuição de Sintomas"]
     )
 
-    with aba_CO:
-        st.subheader("Emissões de CO")       
-      
-        # Estatísticas
-        estatisticas_basicas(df_co, 'concentracao_co')        
+    with aba_Poluentes:
+        st.subheader("Poluentes")       
+
+        # Seção para seleção de intervalo de tempo
+        intervalo_poluentes = st.selectbox(
+            "Intervalo de Agrupamento poluentes", 
+            options=["15Min", "30Min", "1H", "6H", "1D"], 
+            index=2, 
+            key="Poluentes"
+        )
+        intervalo_co2 = st.selectbox(
+            "Intervalo de Agrupamento para CO2", 
+            options=["15Min", "30Min", "1H", "6H", "1D"], 
+            index=2, 
+            key="CO2"
+        )
         
-        intervalo_co = st.selectbox("Intervalo de Agrupamento para CO", options=["15Min", "30Min", "1H", "6H", "1D"], index=2, key="CO")
-        
-        grafico_barras(df_co, "tempo_registro", "concentracao_co", intervalo_co, "Concentração de CO ao Longo do Tempo")
-        grafico_barras_empilhadas(df_co, df_sintomas)
+        # Função para aplicar o agrupamento de tempo (com base na seleção do usuário)
+        def agrupar_por_intervalo(df, coluna_data, intervalo):
+            df[coluna_data] = pd.to_datetime(df[coluna_data])
+            df.set_index(coluna_data, inplace=True)  # Define a coluna como índice
+            agrupado = df.resample(intervalo).mean().reset_index()  # Resample e volta o índice para coluna
+            return agrupado
+                
+        # Aplicar o agrupamento nos dados dos poluentes
+        poluentes_agrupados = agrupar_por_intervalo(df_poluentes, 'tempo_registro', intervalo_poluentes)
+
+        # Gerar gráfico de barras para os poluentes, passando o título
+        grafico_barras(poluentes_agrupados, "tempo_registro", ["pm25", "pm10", "o3", "no2", "so2", "co"], "Concentração de Poluentes ao Longo do Tempo")
+                
+        # Gerar gráfico de barras empilhadas para poluentes e CO2 com sintomas (exemplo de como os dados poderiam ser passados)
+        grafico_barras_empilhadas(poluentes_agrupados, df_co2, df_sintomas)
+        grafico_linhas_2(poluentes_agrupados, df_co2, df_sintomas)
+
 
     with aba_temperatura:
         st.subheader("Temperatura")
@@ -75,7 +106,7 @@ def dashboard():
         st.plotly_chart(fig, use_container_width=True)        
         
         # Gráfico de dispersão temperatura vs CO
-        df_merge = pd.merge(df_temperatura, df_co, on="tempo_registro", how="inner")
+        df_merge = pd.merge(df_temperatura, df_poluentes, on="tempo_registro", how="inner")
         grafico_dispersao(df_merge, "temperatura_media", "concentracao_co", "Temperatura vs Concentração de CO")        
     
     with aba_sintomas:

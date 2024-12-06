@@ -1,3 +1,4 @@
+import numpy as np
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,25 +11,18 @@ import seaborn as sns
 
 
 # Funções de gráficos
-def grafico_barras(df, coluna_x, coluna_y, intervalo, titulo):
-    try:
-        df['tempo_alinhado'] = pd.to_datetime(df[coluna_x]).dt.floor(intervalo)
-        df_agrupado = df.groupby(['tempo_alinhado'])[coluna_y].mean().reset_index()
+def grafico_barras(df, coluna_data, colunas, titulo):
+    plt.figure(figsize=(12, 6))
+    for i, coluna in enumerate(colunas):
+        plt.bar(df[coluna_data], df[coluna], label=coluna, alpha=0.7, align='center')
+    plt.title(titulo)
+    plt.xlabel("Data")
+    plt.ylabel("Concentração")
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    st.pyplot(plt)
 
-        fig = px.bar(
-            df_agrupado,
-            x='tempo_alinhado',
-            y=coluna_y,
-            title=titulo,
-            template='plotly_white'
-        )
-        fig.update_layout(
-            xaxis_title='Tempo',
-            yaxis_title=coluna_y.capitalize(),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"Erro ao criar gráfico de barras: {e}")
 
 def grafico_linhas(df, coluna_x, coluna_y, intervalo, titulo):
     try:
@@ -71,24 +65,6 @@ def grafico_dispersao(df, coluna_x, coluna_y, titulo):
     except Exception as e:
         st.error(f"Erro ao criar gráfico de dispersão: {e}")
         
-# Função para criar um heatmap
-def criar_heatmap(df, coluna_hora, coluna_valor, titulo):
-    try:
-        df['hora'] = pd.to_datetime(df[coluna_hora]).dt.hour
-        heatmap_data = df.groupby('hora')[coluna_valor].mean().reset_index()
-        
-        fig = px.density_heatmap(
-            heatmap_data, 
-            x='hora', 
-            y=coluna_valor, 
-            nbinsx=24, 
-            title=titulo,
-            template='plotly_white',
-            color_continuous_scale='viridis'
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception as e:
-        st.error(f"Erro ao criar heatmap: {e}")
 
 # Função para exibir estatísticas básicas
 def estatisticas_basicas(df, coluna):
@@ -177,63 +153,110 @@ def correlacionar_temperatura_sintomas(temperatura_df, sintomas_df):
     except Exception as e:
         st.error(f"Erro ao gerar correlações: {e}")
 
-def grafico_barras_empilhadas(co_df, sintomas_df):
+
+def grafico_barras_empilhadas(poluentes_df, co2_df, sintomas_df):
     try:
-        # Verificar colunas de CO
-        if 'tempo_registro' not in co_df.columns or 'concentracao_co' not in co_df.columns:
-            st.error("As colunas 'tempo_registro' e 'concentracao_co' não estão presentes no DataFrame de CO.")
-            return
+        # Garantir que as colunas de tempo estão em datetime
+        poluentes_df['tempo_registro'] = pd.to_datetime(poluentes_df['tempo_registro'], errors='coerce')
+        co2_df['tempo_registro'] = pd.to_datetime(co2_df['tempo_registro'], errors='coerce')
+        sintomas_df['tempo_registro'] = pd.to_datetime(sintomas_df['tempo_registro'], errors='coerce')
+
+        # Agrupar os dados por dia
+        poluentes_aggregated = poluentes_df.groupby(pd.Grouper(key='tempo_registro', freq='D'))[['pm25', 'pm10', 'o3', 'no2', 'so2', 'co']].mean().reset_index()
+        co2_aggregated = co2_df.groupby(pd.Grouper(key='tempo_registro', freq='D'))['co2'].mean().reset_index()
+        sintomas_aggregated = sintomas_df.groupby(pd.Grouper(key='tempo_registro', freq='D')).size().reset_index(name='frequencia_sintomas')
+
+        # Combinar os dados
+        merged_df = pd.merge(poluentes_aggregated, co2_aggregated, on='tempo_registro', how='outer')
+        merged_df = pd.merge(merged_df, sintomas_aggregated, on='tempo_registro', how='outer')
+        merged_df.fillna(0, inplace=True)
+
+        # Normalizar os dados para o gráfico, excluindo os sintomas
+        for col in ['pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'co2']:
+            if merged_df[col].max() > 0:
+                merged_df[col] = merged_df[col] / merged_df[col].max()
+
+        # Plotando o gráfico de barras empilhadas usando Matplotlib
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # Preparar os dados para o gráfico empilhado
+        data = merged_df.set_index('tempo_registro')[['pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'co2', 'frequencia_sintomas']]
         
-        # Verificar colunas de sintomas
-        if 'tempo_registro' not in sintomas_df.columns or 'sintomas' not in sintomas_df.columns:
-            st.error("As colunas 'tempo_registro' e 'sintomas' não estão presentes no DataFrame de sintomas.")
-            return
+        # Plotando as barras empilhadas
+        data.plot(kind='bar', stacked=True, ax=ax, colormap='tab20', width=0.8, edgecolor='none')
 
-        # Processando dados de CO
-        co_df['tempo_registro'] = pd.to_datetime(co_df['tempo_registro'])
-        co_aggregated = co_df.groupby('tempo_registro')['concentracao_co'].mean().reset_index()
+        # Ajustando o título, labels e outros detalhes estéticos
+        ax.set_title("Concentração de Poluentes X Sintomas", fontsize=16, fontweight='bold')
+        ax.set_xlabel('Data de Registro', fontsize=12)
+        ax.set_ylabel('Valor Normalizado', fontsize=12)
+        date_labels = data.index.strftime('%d %b %Y')
+        ax.set_xticks(range(0, len(date_labels), 3))  # Exibindo uma data a cada 3 dias
+        ax.set_xticklabels(date_labels[::3], rotation=45, ha='right', fontsize=10)
 
-        # Processando dados de sintomas
-        sintomas_df['tempo_registro'] = pd.to_datetime(sintomas_df['tempo_registro'])
-        sintomas_frequencia = (
-            sintomas_df.groupby('tempo_registro')
-            .size()
-            .reset_index(name='frequencia_sintomas')
-        )
 
-        # Mesclando datasets
-        merged_df = pd.merge(
-            co_aggregated,
-            sintomas_frequencia,
-            on='tempo_registro',
-            how='inner'
-        )
+        # Ajuste da legenda
+        ax.legend(title="Poluentes/Sintomas", bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
 
-        # Normalizando os valores para uma escala de 0 a 1
-        merged_df['concentracao_co_norm'] = merged_df['concentracao_co'] / merged_df['concentracao_co'].max()
-        merged_df['frequencia_sintomas_norm'] = merged_df['frequencia_sintomas'] / merged_df['frequencia_sintomas'].max()
+        # Melhorar a estética: grid, barra de cores e espaciamento
+        ax.grid(True, which='both', axis='y', linestyle='--', linewidth=0.5, alpha=0.7)
+        plt.tight_layout()
 
-        # Gráfico de barras empilhadas
-        fig, ax = plt.subplots(figsize=(12, 6))
-
-        # Preparar dados para o gráfico
-        x = merged_df['tempo_registro']
-        y1 = merged_df['concentracao_co_norm']
-        y2 = merged_df['frequencia_sintomas_norm']
-
-        # Gerar barras empilhadas
-        ax.bar(x, y1, label='Concentração de CO', color='skyblue')
-        ax.bar(x, y2, label='Frequência de Sintomas', bottom=y1, color='salmon')
-
-        # Personalizações
-        ax.set_xlabel("Tempo de Registro")
-        ax.set_ylabel("Valores Normalizados")
-        ax.set_title("Medição de CO e Frequência de Sintomas ao Longo do Tempo")
-        ax.legend()
-
-        # Formatação do eixo x
-        plt.xticks(rotation=45)
+        # Exibir o gráfico no Streamlit
         st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"Erro ao gerar o gráfico de barras empilhadas: {e}")
+        st.error(f"Erro ao gerar o gráfico: {e}")
+
+def grafico_linhas_2(poluentes_df, co2_df, sintomas_df):
+    try:
+        # Garantir que as colunas de tempo estão em datetime
+        poluentes_df['tempo_registro'] = pd.to_datetime(poluentes_df['tempo_registro'], errors='coerce')
+        co2_df['tempo_registro'] = pd.to_datetime(co2_df['tempo_registro'], errors='coerce')
+        sintomas_df['tempo_registro'] = pd.to_datetime(sintomas_df['tempo_registro'], errors='coerce')
+
+        # Agrupar os dados por dia
+        poluentes_aggregated = poluentes_df.groupby(pd.Grouper(key='tempo_registro', freq='D'))[['pm25', 'pm10', 'o3', 'no2', 'so2', 'co']].mean().reset_index()
+        co2_aggregated = co2_df.groupby(pd.Grouper(key='tempo_registro', freq='D'))['co2'].mean().reset_index()
+        sintomas_aggregated = sintomas_df.groupby(pd.Grouper(key='tempo_registro', freq='D')).size().reset_index(name='frequencia_sintomas')
+
+        # Combinar os dados
+        merged_df = pd.merge(poluentes_aggregated, co2_aggregated, on='tempo_registro', how='outer')
+        merged_df = pd.merge(merged_df, sintomas_aggregated, on='tempo_registro', how='outer')
+        merged_df.fillna(0, inplace=True)
+
+        # Normalizar os dados para o gráfico
+        for col in ['pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'co2', 'frequencia_sintomas']:
+            if merged_df[col].max() > 0:
+                merged_df[col] = merged_df[col] / merged_df[col].max()
+
+        # Transformar os dados para formato longo (necessário para Plotly Express)
+        long_df = merged_df.melt(
+            id_vars='tempo_registro',
+            value_vars=['pm25', 'pm10', 'o3', 'no2', 'so2', 'co', 'co2', 'frequencia_sintomas'],
+            var_name='Poluente/Sintoma',
+            value_name='Valor Normalizado'
+        )
+
+        # Criar o gráfico de linhas com Plotly
+        fig = px.line(
+            long_df,
+            x='tempo_registro',
+            y='Valor Normalizado',
+            color='Poluente/Sintoma',
+            title="Concentração de Poluentes e Sintomas ao Longo do Tempo (Normalizado)",
+            labels={'tempo_registro': 'Tempo de Registro', 'Valor Normalizado': 'Valor'},
+            template='plotly_white'
+        )
+
+        fig.update_layout(
+            xaxis=dict(title='Tempo de Registro'),
+            yaxis=dict(title='Valores Normalizados'),
+            legend=dict(title='Poluente/Sintoma'),
+            hovermode="x unified"  # Exibe os valores de cada linha quando o cursor passar por cima
+        )
+
+        # Exibir o gráfico no Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Erro ao gerar o gráfico: {e}")

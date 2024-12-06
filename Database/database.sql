@@ -24,6 +24,18 @@ CREATE TABLE dados_CO (
     media_do_horario FLOAT NOT NULL
 );
 
+-- Tabela para o arquivo 'dados_poluentes.csv'
+CREATE TABLE dados_poluentes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    data DATETIME NOT NULL,
+    pm25 FLOAT NOT NULL,
+    pm10 FLOAT NOT NULL,
+    o3 FLOAT NOT NULL,
+    no2 FLOAT NOT NULL,
+    so2 FLOAT NOT NULL,
+    co FLOAT NOT NULL
+);
+
 -- Tabela para o arquivo 'dados_temeperatura_SP.csv'
 CREATE TABLE dados_temperatura_SP (
     id INT AUTO_INCREMENT PRIMARY KEY,
